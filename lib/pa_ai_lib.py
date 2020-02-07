@@ -1,4 +1,6 @@
+# =============================================================================
 # Created by : Ritesh kant
+# =============================================================================
 
 import nltk
 from nltk.stem.lancaster import LancasterStemmer
@@ -21,6 +23,8 @@ nltk.download('stopwords')
 stop_words = set(stopwords.words('english'))
 
 # used to preprocess sentence by tokenizing, removing stop words, stemming
+
+
 def text_preprocess(sentence, dest):
     # break the sentence in tokens
     words = word_tokenize(sentence)
@@ -31,14 +35,17 @@ def text_preprocess(sentence, dest):
     dest.append(words)
 
 # Open the application config file and load the configuration
+
+
 def getAppConfig():
     with open('configuration/app_config.json') as config_data:
         app_config = json.load(config_data)
     return app_config
 
+
 def createDatasetFromConfig(app_config):
     train_x = []
-    train_y= []
+    train_y = []
     if app_config['train']['files'][0] in {"**", "*.json", "**.json"}:
         location = glob.glob(app_config['train']['dir']+"/**")
     else:
@@ -56,15 +63,15 @@ def createDatasetFromConfig(app_config):
     # create train x and tain y dataset
     for x in raw_train:
         text_preprocess(x['text'], train_x)
-        text_preprocess(x['intent'],train_y)
+        text_preprocess(x['intent'], train_y)
     return [train_x, train_y]
 
 
 def createModel(embedding_dim):
     model = keras.Sequential([
-        keras.layers.Embedding(100,embedding_dim),
+        keras.layers.Embedding(100, embedding_dim),
         tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(embedding_dim)),
-    #    tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(32)),
+        #    tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(32)),
         # use ReLU in place of tanh function since they are very good alternatives of each other.
         tf.keras.layers.Dense(embedding_dim, activation='relu'),
         # Add a Dense layer with 6 units and softmax activation.
@@ -72,14 +79,44 @@ def createModel(embedding_dim):
         tf.keras.layers.Dense(6, activation='softmax')
     ])
     model.summary()
-    model.compile('adam','sparse_categorical_crossentropy',['accuracy'])
+    model.compile('adam', 'sparse_categorical_crossentropy', ['accuracy'])
     return model
 
-def tokenize_encode(train, padding = False):
-    tokenizer_x = Tokenizer(num_words = 100)
+
+def tokenize_encode(train, padding=False,):
+    tokenizer_x = Tokenizer(num_words=100)
     tokenizer_x.fit_on_texts(train)
     train = np.array(tokenizer_x.texts_to_sequences(train))
     if padding:
-        train = keras.preprocessing.sequence.pad_sequences(train, padding='post', maxlen=5)
-    return train
+        train = keras.preprocessing.sequence.pad_sequences(
+            train, padding='post', maxlen=5)
+    return (train, tokenizer_x)
+
+
+def chat(input_text):
+    output_value = []
+    text_preprocess(input_text, output_value)
+    tokenizer_x = Tokenizer(num_words=100)
+    tokenizer_x.fit_on_texts([input_text])
+
+    output_value = np.array(tokenizer_x.texts_to_sequences(input_text))
+    output = keras.preprocessing.sequence.pad_sequences(
+        output_value, padding='post', maxlen=5)
+    # output = tokenize_encode(output_value, True)
+    model = tf.keras.models.load_model('chatbot')
+    ans = model.predict(output)
+    print(ans)
+
+    val_max = np.argmax(ans[0])
+    for key,val in tokenizer_x.word_index.items():
+        if val == val_max:
+            k = key
+
+    print(k)
+
+ 
+def saveTokenizer(token_data):
+    token_data = token_data.get_config()
+    with open('tokenized_data.json', 'w') as handle:
+        json.dump((token_data), handle)
 
